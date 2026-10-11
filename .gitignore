@@ -1,0 +1,14 @@
+# Python geçici dosyaları
+__pycache__/
+*.pyc
+
+# Python sanal ortamı
+.venv/
+venv/
+
+# Gizli bilgiler
+.env
+.env.*
+
+# VS Code yerel ayarları
+.vscode/
