@@ -1,0 +1,11 @@
+# Akilli Fabrika - Python 3.12
+# Kurulum: pip install -r requirements.txt
+# Diger ekip uyeleri kendi kutuphanelerini (fastapi, scikit-learn vb.) bu dosyaya ekleyecek.
+
+# MQTT ve MySQL (1. kisi)
+paho-mqtt>=2.0,<3
+mysql-connector-python>=8.0
+python-dotenv>=1.0
+
+# Veri
+pandas>=2.0

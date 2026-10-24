@@ -9,6 +9,7 @@ venv/
 # Gizli bilgiler
 .env
 .env.*
+!.env.example
 
 # VS Code yerel ayarları
 .vscode/
