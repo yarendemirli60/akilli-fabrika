@@ -84,3 +84,17 @@ def test_alert_preview_runs():
     r = client.get("/alerts/preview/1")
     assert r.status_code == 200
     assert isinstance(r.json(), list)
+
+
+def test_alert_list_and_check_with_sample_data():
+    assert client.get("/alerts").status_code == 200
+    assert client.get("/alerts?machine_id=99").status_code == 404
+    r = client.post("/alerts/check")
+    assert r.status_code == 200
+    assert [x["machine_id"] for x in r.json()] == [1, 2, 3]
+
+
+def test_measurements_simulation_filter():
+    rows = client.get("/measurements?simulation_id=1&limit=5").json()
+    assert len(rows) == 5 and all(r["simulation_id"] == 1 for r in rows)
+    assert client.get("/measurements?simulation_id=999").json() == []
