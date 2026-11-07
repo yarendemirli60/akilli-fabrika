@@ -7,18 +7,37 @@ Akıllı Fabrika – FastAPI backend
 API dokümantasyonu:
     http://127.0.0.1:8000/docs
 """
+import os
+import threading
+from contextlib import asynccontextmanager
+
 import mysql.connector
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from backend.alerts import engine
 from backend.repository import get_repository
 from backend.routers import alerts, machines, measurements
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # API açılınca uyarı motorunu arka planda başlat, kapanınca durdur.
+    # .env içinde ALERT_ENGINE=off yazılırsa motor çalışmaz.
+    stop_event = threading.Event()
+    if os.getenv("ALERT_ENGINE", "on").lower() != "off":
+        threading.Thread(target=engine.run_forever, args=(stop_event, get_repository),
+                         daemon=True).start()
+    yield
+    stop_event.set()
+
 
 app = FastAPI(
     title="Akıllı Fabrika API",
     description="Üç CNC makinesinin ölçüm, durum ve uyarı verilerini sunar.",
-    version="0.2.0",
+    version="0.3.0",
+    lifespan=lifespan,
 )
 
 # Web paneli farklı bir adresten (ör. Live Server, 127.0.0.1:5500) istek atacağı için

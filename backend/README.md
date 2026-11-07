@@ -20,7 +20,7 @@ API dokümantasyonu: http://127.0.0.1:8000/docs
 ```
 python -m pytest testler -v
 ```
-`test_mysql_api.py` gerçek veritabanını kullanır; kendi test kayıtlarını ekleyip sonunda siler. MySQL'e bağlanılamazsa bu testler atlanır.
+`test_mysql_api.py` gerçek veritabanını kullanır; kendi test kayıtlarını ekler ve sonunda veritabanını eski haline getirir. MySQL'e bağlanılamazsa bu testler atlanır. Testleri çalıştırırken API (uvicorn) ve publisher kapalı olmalıdır.
 
 ## Endpoint'ler
 
@@ -32,8 +32,11 @@ python -m pytest testler -v
 | GET | `/machines/{id}` | Tek makine |
 | GET | `/machines/{id}/latest` | Makinenin son ölçümü |
 | GET | `/measurements?machine_id=1&limit=100` | Ölçümler (zamana göre sıralı) |
+| GET | `/alerts?machine_id=1&active=true&limit=100` | Kayıtlı uyarılar (en yeniden eskiye). `active=true` açık, `active=false` çözülmüş uyarılar |
+| POST | `/alerts/check?machine_id=1` | Uyarı kontrolünü hemen çalıştırır, oluşan/kapanan uyarı türlerini döndürür |
+| POST | `/alerts/{id}/resolve` | Uyarıyı elle kapatır |
 | GET | `/alerts/rules` | Tanımlı uyarı kuralları |
-| GET | `/alerts/preview/{id}` | Kuralları makinenin ölçümlerinde çalıştırır |
+| GET | `/alerts/preview/{id}` | Kuralları çalıştırır ama kaydetmez |
 
 Yanıtlardaki alan adları `veritabani/schema.sql` ile aynıdır. Veritabanına bağlanılamazsa endpoint'ler `503` ve açıklayıcı bir mesaj döner.
 
@@ -56,3 +59,21 @@ Yüksek güç eşikleri (şartname Tablo 1 ve 2):
 | M3 – Çift Aynalı CNC | 17.60 kW | 18.65 kW |
 
 Eşikler ve süreler `backend/config.py` içinden değiştirilebilir.
+
+## Uyarı motoru
+
+API açıkken arka planda her 2 saniyede bir bütün makineler için kurallar çalıştırılır ve sonuç `alerts` tablosuna işlenir:
+
+- Kural tetiklendi, açık kaydı yok → yeni uyarı eklenir
+- Kural hâlâ tetikleniyor → aynı uyarı tekrar yazılmaz
+- Kural artık tetiklenmiyor → uyarının `resolved_at` alanı doldurulur (normale dönüş)
+
+Oluşan ve kapanan uyarılar uvicorn terminalinde `[UYARI]` satırlarıyla görünür.
+
+`.env` ile ayarlanabilir:
+
+| Ayar | Varsayılan | Açıklama |
+|---|---|---|
+| `ALERT_ENGINE` | `on` | `off` yazılırsa motor çalışmaz |
+| `ALERT_CHECK_INTERVAL_S` | `2` | Kontrol aralığı (saniye) |
+

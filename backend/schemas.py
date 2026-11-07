@@ -46,3 +46,8 @@ class Alert(BaseModel):
     message: str
     created_at: Optional[datetime] = None
     resolved_at: Optional[datetime] = None
+
+
+class AlertRecord(Alert):
+    """alerts tablosundaki kayıtlı bir uyarı"""
+    id: int
