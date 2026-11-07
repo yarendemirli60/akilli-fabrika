@@ -1,8 +1,8 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend import sample_data
+from backend.repository import get_repository
 from backend.schemas import Measurement
 
 router = APIRouter(prefix="/measurements", tags=["Ölçümler"])
@@ -12,8 +12,9 @@ router = APIRouter(prefix="/measurements", tags=["Ölçümler"])
 def list_measurements(
     machine_id: Optional[int] = Query(None, description="Sadece bu makinenin ölçümleri"),
     limit: int = Query(100, ge=1, le=5000, description="En fazla kaç kayıt dönsün"),
+    repo=Depends(get_repository),
 ):
     """Ölçümler, zamana göre sıralı. Grafikler için kullanılır."""
-    if machine_id is not None and sample_data.get_machine(machine_id) is None:
+    if machine_id is not None and repo.get_machine(machine_id) is None:
         raise HTTPException(status_code=404, detail="Makine bulunamadı")
-    return sample_data.get_measurements(machine_id=machine_id, limit=limit)
+    return repo.get_measurements(machine_id=machine_id, limit=limit)

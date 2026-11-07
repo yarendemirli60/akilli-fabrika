@@ -1,9 +1,9 @@
 """
-Örnek veri ve veri erişim fonksiyonları.
+Örnek veri.
 
-MySQL bağlantısı eklenene kadar API bu verileri döndürür. Router'lar
-veriye sadece alttaki get_* fonksiyonlarıyla eriştiği için veritabanına
-geçerken yalnızca bu dosya değişecek.
+Testlerde ve MySQL kurulu değilken API'yi denemek için kullanılıyor
+(.env içinde DATA_SOURCE=sample). Normalde veri repository.py
+üzerinden MySQL'den geliyor.
 
 Güç değerleri: P_toplam = P_boşta + P_c / η  (+ küçük sabit sapma)
 Rastgele değer kullanmadım ki testler her seferinde aynı sonucu versin.
