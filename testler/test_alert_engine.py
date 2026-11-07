@@ -20,11 +20,15 @@ class FakeRepo:
 
     # Ölçümleri verilen güç değerleriyle değiştir (10 Hz)
     def set_power(self, powers, status="working"):
+        self.set_readings([(p, status) for p in powers])
+
+    def set_readings(self, readings, simulation_id=1, start=T0):
+        """readings: [(güç, durum), ...] (10 Hz)"""
         self.measurements = [
-            Measurement(id=i, simulation_id=1, machine_id=1, seq=i,
-                        ts=T0 + timedelta(seconds=i * 0.1), duration_s=0.1,
+            Measurement(id=i, simulation_id=simulation_id, machine_id=1, seq=i,
+                        ts=start + timedelta(seconds=i * 0.1), duration_s=0.1,
                         status=status, power_kw=p)
-            for i, p in enumerate(powers, start=1)
+            for i, (p, status) in enumerate(readings, start=1)
         ]
 
     def get_machines(self):
@@ -143,3 +147,32 @@ def test_ai_alerts_are_not_touched():
     repo.set_power([25.6] * 10)
     result = engine.run_once(repo)
     assert result[0]["created"] == ["yuksek_guc"]
+
+
+def test_high_power_does_not_flap_at_phase_change():
+    # Arızalı takım: boşta fazından kesmeye geçişin ilk anında son 10 ölçümün
+    # bir kısmı hâlâ boşta değeri; ortalama düşük çıksa da uyarı kapanmamalı
+    repo = FakeRepo()
+    repo.set_power([25.6] * 10)
+    engine.run_once(repo)
+    repo.set_readings([(4.2, "idle")] * 7 + [(25.6, "working")] * 3)
+    result = engine.run_once(repo)
+    assert result[0]["resolved"] == []
+    repo.set_power([25.6] * 10)
+    result = engine.run_once(repo)
+    assert result[0]["created"] == []
+    assert len(repo.alerts) == 1                      # tek kayıt, açılıp kapanma yok
+
+
+def test_previous_run_does_not_count_as_idle():
+    # Önceki simülasyon boşta bitti, 2 saat sonra yeni simülasyon boşta başladı:
+    # aradaki süre "uzun boşta kalma" sayılmamalı
+    repo = FakeRepo()
+    old = [(3.2, "idle")] * 10
+    new_start = T0 + timedelta(hours=2)
+    repo.set_readings(old, simulation_id=1)
+    previous = list(repo.measurements)
+    repo.set_readings([(3.2, "idle")] * 10, simulation_id=2, start=new_start)
+    repo.measurements = previous + repo.measurements
+    result = engine.run_once(repo)
+    assert "uzun_bosta" not in result[0]["created"]

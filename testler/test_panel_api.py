@@ -23,10 +23,23 @@ T = datetime(2026, 11, 7, 12, 0, 0)
 # ---------------- 1) Saf hesaplamalar ----------------
 
 def test_run_status():
+    # Terminalden başlatılan çalışma: son veri zamanına bakılır
     assert run_status(None, T, T + timedelta(seconds=5)) == "running"
     assert run_status(None, T, T + timedelta(seconds=60)) == "completed"
-    assert run_status(T, T, T) == "completed"
     assert run_status(None, None, T) == "completed"
+    # ended_at yalnızca kullanıcı durdurmasında dolar
+    assert run_status(T, T, T) == "user_stopped"
+
+
+def test_run_status_from_control_program():
+    later = T + timedelta(minutes=5)          # veri eski olsa bile
+    assert run_status(None, T, later, "SIM-1", running_code="SIM-1") == "running"
+    done = {"simulation_code": "SIM-1", "reason": "completed"}
+    assert run_status(None, T, T, "SIM-1", None, done) == "completed"   # veri yeni olsa bile
+    crashed = {"simulation_code": "SIM-1", "reason": "error"}
+    assert run_status(None, T, T, "SIM-1", None, crashed) == "error"
+    other = {"simulation_code": "SIM-2", "reason": "error"}
+    assert run_status(None, T, later, "SIM-1", None, other) == "completed"
 
 
 def test_counter_delta_uses_differences():

@@ -73,6 +73,24 @@ class MySQLRepository:
             cur.execute("SELECT 1 AS ok")
             return cur.fetchone()["ok"] == 1
 
+    def simulation_ended(self, simulation_id: int) -> bool:
+        """
+        Çalışma bitti mi? Kullanıcı durdurduysa ended_at doludur; kendiliğinden
+        bittiyse (ya da hata ile kapandıysa) bunu simülasyon kontrol programı bildirir.
+        """
+        with get_cursor() as cur:
+            cur.execute("SELECT simulation_code, ended_at FROM simulations WHERE id = %s",
+                        (simulation_id,))
+            row = cur.fetchone()
+        if row is None:
+            return False
+        if row["ended_at"] is not None:
+            return True
+        from backend.sim_control import control
+        finished = control.last_finished() or {}
+        return (finished.get("simulation_code") == row["simulation_code"]
+                and control.running_code() != row["simulation_code"])
+
     # ---- Uyarılar ----
 
     def list_alerts(self, machine_id: Optional[int] = None, active: Optional[bool] = None,

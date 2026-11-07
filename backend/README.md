@@ -20,7 +20,12 @@ API dokümantasyonu: http://127.0.0.1:8000/docs
 ```
 python -m pytest testler -v
 ```
-`test_mysql_api.py` gerçek veritabanını kullanır; kendi test kayıtlarını ekler ve sonunda veritabanını eski haline getirir. MySQL'e bağlanılamazsa bu testler atlanır. Testleri çalıştırırken API (uvicorn) ve publisher kapalı olmalıdır.
+`test_mysql_api.py` gerçek veritabanını kullanır; kendi test kayıtlarını ekler ve sonunda veritabanını eski haline getirir. MySQL'e bağlanılamazsa bu testler atlanır. Testleri çalıştırırken subscriber, publisher, `sim_agent` ve API (uvicorn) kapalı olmalıdır.
+
+Kontrol programı testi (`test_run_control.py`) Mosquitto çalışıyorsa gerçek `publisher.py` ile çalışır. Uçtan uca test yalnızca istenirse çalışır:
+```
+RUN_E2E=1 python -m pytest testler/test_e2e_panel.py -v
+```
 
 ## Endpoint'ler
 
@@ -53,14 +58,49 @@ Yanıtlardaki alan adları `veritabani/schema.sql` ile aynıdır. Veritabanına 
 | GET | `/api/runs/{id}/machines/{machineId}/series?from=0&to=900&step=1` | Grafik noktaları (yatay eksen simülasyon saniyesi) |
 | GET | `/api/runs/{id}/comparison?from=0&to=900` | Aralıkta üç makinenin özeti (sayaç farkları) |
 | GET | `/api/alerts?runId=&machineId=&type=&status=&from=&to=` | Kural ve yapay zekâ uyarıları tek listede |
+| POST | `/api/runs` gövde: `{"scenarioId": "normal"}` | Yeni çalışma başlatır (201). Devam eden çalışma varsa 409 |
+| POST | `/api/runs/{id}/stop` | Kullanıcı durdurması, sonuçlar korunur (durum `user_stopped`) |
+| GET | `/api/scenarios` | Başlatılabilen senaryolar |
+| GET | `/api/control/status` | Simülasyon kontrol programı çalışıyor mu (Başlat düğmesi için) |
 
 Notlar:
-- "Çalışma" (run) = `simulations` tablosundaki bir simülasyon. Subscriber bitişi kaydetmediği için 30 saniyedir ölçüm gelmeyen çalışma `completed` sayılır.
+- "Çalışma" (run) = `simulations` tablosundaki bir simülasyon.
+- Çalışma durumu: `ended_at` doluysa `user_stopped` (bu alanı yalnızca kullanıcı durdurması doldurur); kontrol programı yürütüyorsa `running`; kontrol programı bittiğini bildirdiyse `completed` ya da `error`. Terminalden başlatılan çalışmalarda 30 saniyedir ölçüm gelmiyorsa `completed`.
 - Uyarı türleri: `makine_durdu → unexpected_stop`, `veri_yok → no_data`, `uzun_bosta → long_idle`, `yuksek_guc → power_limit`, `yuksek_enerji_parca → energy_per_part_limit`; yapay zekâdan `guc_anomalisi` ve `yavas_uretim → ai_anomaly`, `uzun_bosta → long_idle`. `source` alanı `rule` ya da `ai`.
 - Yapay zekâ uyarılarını `ai/canli_analiz.py` yazar (mesajı `AI|` ile başlar); backend uyarı motoru bunlara dokunmaz.
 - Yapay zekâ skoru veritabanına yazılmadığı için `ai.score` şimdilik `null`.
 - `/api/alerts` için `runId` verilirse `from`/`to` simülasyon saniyesidir, verilmezse ISO 8601 tarihtir.
-- Çalışma başlatma/durdurma (`POST /api/runs`, `POST /api/runs/{id}/stop`) henüz yok.
+
+## Panelden simülasyon başlatma / durdurma
+
+```
+Panel ─POST /api/runs─► API ─MQTT komutu─► sim_agent ─► mqtt/publisher.py ─► MQTT ─► subscriber ─► MySQL
+```
+
+- API ile kontrol programı `factory/control/simulation/cmd` ve `.../status` topic'leri üzerinden haberleşir (ayrıntı: `backend/sim_protocol.py`). Her komutun bir kimliği var, cevap bu kimlikle eşleştirilir.
+- Durum mesajı "retained"; kontrol programı beklenmedik şekilde kapanırsa broker "Last Will" mesajıyla `offline` yayınlar. Bu durumda başlat/durdur 503 döner.
+- Kontrol programı `publisher.py` ve `simulasyon.py` dosyalarını değiştirmez; yalnızca mevcut `--sim-id`, `--csv` seçeneklerini ve `cikis` komutunu kullanır.
+- Aynı anda tek çalışma: API ve kontrol programı ikinci başlatmayı reddeder (409).
+- **Duruma göre uyarı bastırma (ISA-18.2):** çalışma durdurulduğunda ya da bittiğinde veri kesilmesi arıza sayılmaz; uyarı motoru o çalışma için kural çalıştırmaz ve açık kural uyarılarını kapatır.
+
+Çalıştırma sırası (her biri ayrı terminalde, proje kökünden):
+1. `python mqtt/subscriber.py`
+2. `python -m backend.sim_agent`
+3. `uvicorn backend.main:app --reload`
+
+Panelden ya da `/docs` sayfasından `POST /api/runs` ile başlatılır; publisher'ı elle çalıştırmaya gerek yoktur.
+
+### Senaryolar
+
+| scenarioId | Paneldeki adı | Ne yapar |
+|---|---|---|
+| `normal` | Normal çalışma | Canlı simülasyon, arızasız |
+| `yuksek_guc` | Yüksek güç tüketimi | Canlı simülasyon, başlangıçta `ariza M3` |
+| `beklenmeyen_durus` | Beklenmeyen duruş | Canlı simülasyon, 60. sn `durdur M2`, 120. sn `baslat M2` |
+| `kayit_normal` | Kayıtlı veri (normal) | `normal_veriler.csv` gerçek zamanlı |
+| `kayit_arizali` | Kayıtlı veri (arızalı) | `test_veriler.csv` gerçek zamanlı |
+
+`scenarioId` olarak paneldeki ad da gönderilebilir. Paneldeki "Uzun boşta bekleme" senaryosunu simülasyon henüz üretemediği için 422 döner (simülasyona bir bekleme komutu eklenmesi gerekir).
 
 ## Uyarı kuralları
 
