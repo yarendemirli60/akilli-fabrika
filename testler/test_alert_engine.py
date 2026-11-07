@@ -124,3 +124,22 @@ def test_high_power_stays_open_while_idle():
     repo.set_power([19.2] * 10)
     result = engine.run_once(repo)
     assert result[0]["resolved"] == ["yuksek_guc"]
+
+
+def test_ai_alerts_are_not_touched():
+    # Yapay zekânın açtığı uzun_bosta uyarısı motor tarafından kapatılmamalı
+    # ve motorun kendi uyarısını açmasına engel olmamalı
+    repo = FakeRepo()
+    repo.alerts.append(AlertRecord(id=1, machine_id=1, alert_type="uzun_bosta", severity="warning",
+                                   message="AI|abc|Sim=SIM-1 | Kesintisiz boşta kalma süresi sınırı aşıldı.",
+                                   created_at=T0))
+    repo.set_power([19.2] * 10)
+    result = engine.run_once(repo)
+    assert result[0]["resolved"] == []
+    assert repo.alerts[0].resolved_at is None
+
+    repo.alerts.append(AlertRecord(id=2, machine_id=1, alert_type="yuksek_guc", severity="warning",
+                                   message="AI|xyz|Sim=SIM-1 | test", created_at=T0))
+    repo.set_power([25.6] * 10)
+    result = engine.run_once(repo)
+    assert result[0]["created"] == ["yuksek_guc"]

@@ -11,6 +11,7 @@ sonucu alerts tablosuyla karşılaştırır:
                                                   (normale dönüş)
 
 "Açık kayıt" = resolved_at değeri NULL olan uyarı.
+Yapay zekânın yazdığı uyarılar ("AI|" ile başlayan mesajlar) hesaba katılmaz.
 """
 import logging
 import os
@@ -18,6 +19,7 @@ import threading
 from typing import Dict, List, Optional
 
 from backend.alerts import rules
+from backend.alerts.mapping import is_ai_alert
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -44,7 +46,9 @@ def sync_machine(repo, machine) -> Dict:
     """Tek bir makine için kuralları çalıştırır ve alerts tablosunu günceller."""
     measurements = repo.get_measurements(machine_id=machine.id, limit=RULE_WINDOW)
     current = {a.alert_type: a for a in rules.evaluate_all(machine, measurements, repo.now())}
-    open_alerts = {a.alert_type: a for a in repo.get_open_alerts(machine.id)}
+    # Yapay zekânın (ai/canli_analiz.py) açtığı uyarılara dokunulmaz; onları kendisi yönetiyor
+    open_alerts = {a.alert_type: a for a in repo.get_open_alerts(machine.id)
+                   if not is_ai_alert(a.message)}
 
     created, resolved = [], []
     for alert_type, alert in current.items():
