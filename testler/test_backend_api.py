@@ -2,11 +2,21 @@
 FastAPI endpoint testleri.
 Çalıştırma (proje kök klasöründen):  python -m pytest testler -v
 """
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import app
+from backend.repository import SampleRepository, get_repository
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True, scope="module")
+def use_sample_data():
+    # Bu dosyadaki testler veritabanından bağımsız: örnek veriyle çalışıyor
+    app.dependency_overrides[get_repository] = lambda: SampleRepository()
+    yield
+    app.dependency_overrides.clear()
 
 
 def test_health():

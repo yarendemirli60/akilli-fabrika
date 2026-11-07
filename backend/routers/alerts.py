@@ -1,13 +1,15 @@
-from datetime import datetime
 from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from backend import sample_data
 from backend.alerts import rules
+from backend.repository import get_repository
 from backend.schemas import Alert
 
 router = APIRouter(prefix="/alerts", tags=["Uyarılar"])
+
+# Kuralların bakacağı en fazla ölçüm sayısı (10 Hz'de ~2 dakika)
+RULE_WINDOW = 1500
 
 
 @router.get("/rules")
@@ -17,17 +19,16 @@ def list_rules():
 
 
 @router.get("/preview/{machine_id}", response_model=List[Alert])
-def preview_alerts(machine_id: int):
+def preview_alerts(machine_id: int, repo=Depends(get_repository)):
     """
-    Kuralları seçilen makinenin ölçümleri üzerinde çalıştırır.
+    Kuralları seçilen makinenin son ölçümleri üzerinde çalıştırır.
     Sonuçları sadece döndürür, alerts tablosuna yazmaz.
     """
-    machine = sample_data.get_machine(machine_id)
+    machine = repo.get_machine(machine_id)
     if machine is None:
         raise HTTPException(status_code=404, detail="Makine bulunamadı")
-    measurements = sample_data.get_measurements(machine_id=machine_id, limit=5000)
-    # Örnek veri geçmiş bir zamana ait; 'şimdi'yi son ölçüm anı kabul ediyoruz
-    now = measurements[-1].ts if measurements else datetime.now()
+    measurements = repo.get_measurements(machine_id=machine_id, limit=RULE_WINDOW)
+    now = repo.now()
     alerts = rules.evaluate_all(machine, measurements, now)
     for a in alerts:
         a.created_at = now

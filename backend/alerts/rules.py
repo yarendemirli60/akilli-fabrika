@@ -70,11 +70,16 @@ def check_high_power(machine: Machine, measurements: List[Measurement]) -> Optio
 
 def check_long_idle(machine: Machine, measurements: List[Measurement]) -> Optional[Alert]:
     """Makine sondan geriye kesintisiz olarak uzun süre boşta kaldıysa uyarı verir."""
-    idle_seconds = 0.0
+    idle_run = []
     for m in reversed(measurements):
         if m.status != "idle":
             break
-        idle_seconds += m.duration_s or 0
+        idle_run.append(m)
+    if not idle_run:
+        return None
+    # Süreyi zaman damgalarından hesaplıyoruz; ölçüm aralığı ne olursa olsun doğru çalışır
+    first, last = idle_run[-1], idle_run[0]
+    idle_seconds = (last.ts - first.ts).total_seconds() + (last.duration_s or 0)
     if idle_seconds > config.LONG_IDLE_S:
         return Alert(
             machine_id=machine.id,

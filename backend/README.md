@@ -2,13 +2,17 @@
 
 Makinelerin ölçüm, durum ve uyarı verilerini sunan REST API.
 
-## Çalıştırma
-Proje kök klasöründe, sanal ortam açıkken:
+## Kurulum
+1. MySQL'de `veritabani/schema.sql` dosyasını çalıştırın.
+2. Proje kökünde `.env.example` dosyasını kopyalayıp adını `.env` yapın ve `DB_PASSWORD` satırına kendi MySQL şifrenizi yazın. API, `mqtt/subscriber.py` ile aynı `.env` ayarlarını kullanır.
+3. Sanal ortam açıkken:
 
 ```
 pip install -r requirements.txt
 uvicorn backend.main:app --reload
 ```
+
+MySQL kurulu değilse API'yi örnek veriyle denemek için `.env` dosyasına `DATA_SOURCE=sample` satırını ekleyin.
 
 API dokümantasyonu: http://127.0.0.1:8000/docs
 
@@ -16,14 +20,14 @@ API dokümantasyonu: http://127.0.0.1:8000/docs
 ```
 python -m pytest testler -v
 ```
+`test_mysql_api.py` gerçek veritabanını kullanır; kendi test kayıtlarını ekleyip sonunda siler. MySQL'e bağlanılamazsa bu testler atlanır.
 
 ## Endpoint'ler
-
-> Not: Veritabanı bağlantısı eklenene kadar endpoint'ler `sample_data.py` içindeki örnek veriyi döndürür. Yanıt formatı değişmeyecek.
 
 | Metot | Adres | Açıklama |
 |---|---|---|
 | GET | `/health` | API çalışıyor mu |
+| GET | `/health/db` | Veritabanı bağlantısı çalışıyor mu |
 | GET | `/machines` | Makine listesi |
 | GET | `/machines/{id}` | Tek makine |
 | GET | `/machines/{id}/latest` | Makinenin son ölçümü |
@@ -31,7 +35,7 @@ python -m pytest testler -v
 | GET | `/alerts/rules` | Tanımlı uyarı kuralları |
 | GET | `/alerts/preview/{id}` | Kuralları makinenin ölçümlerinde çalıştırır |
 
-Yanıtlardaki alan adları `veritabani/schema.sql` ile aynıdır.
+Yanıtlardaki alan adları `veritabani/schema.sql` ile aynıdır. Veritabanına bağlanılamazsa endpoint'ler `503` ve açıklayıcı bir mesaj döner.
 
 ## Uyarı kuralları
 
