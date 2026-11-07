@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse
 
 from backend.alerts import engine
 from backend.repository import get_repository
-from backend.routers import alerts, machines, measurements
+from backend.routers import alerts, machines, measurements, panel
 
 
 @asynccontextmanager
@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Akıllı Fabrika API",
     description="Üç CNC makinesinin ölçüm, durum ve uyarı verilerini sunar.",
-    version="0.3.0",
+    version="0.4.0",
     lifespan=lifespan,
 )
 
@@ -62,6 +62,7 @@ def database_error_handler(request: Request, exc: mysql.connector.Error):
 app.include_router(machines.router)
 app.include_router(measurements.router)
 app.include_router(alerts.router)
+app.include_router(panel.router)
 
 
 @app.get("/health", tags=["Sistem"])

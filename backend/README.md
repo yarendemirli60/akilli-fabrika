@@ -40,6 +40,28 @@ python -m pytest testler -v
 
 Yanıtlardaki alan adları `veritabani/schema.sql` ile aynıdır. Veritabanına bağlanılamazsa endpoint'ler `503` ve açıklayıcı bir mesaj döner.
 
+## Web paneli uçları (`/api`)
+
+`web-panel/API-SOZLESMESI.md` sözleşmesine göre yazıldı. Panelde:
+`FactoryAPI.configure({baseUrl: 'http://localhost:8000/api'})`
+
+| Metot | Adres | Açıklama |
+|---|---|---|
+| GET | `/api/runs/current` | Devam eden çalışma, yoksa `null` |
+| GET | `/api/runs?from=&to=&scenarioId=&status=` | Çalışmalar (en yeniden eskiye) |
+| GET | `/api/runs/{id}/snapshot` | Çalışma ve üç makinenin anlık durumu |
+| GET | `/api/runs/{id}/machines/{machineId}/series?from=0&to=900&step=1` | Grafik noktaları (yatay eksen simülasyon saniyesi) |
+| GET | `/api/runs/{id}/comparison?from=0&to=900` | Aralıkta üç makinenin özeti (sayaç farkları) |
+| GET | `/api/alerts?runId=&machineId=&type=&status=&from=&to=` | Kural ve yapay zekâ uyarıları tek listede |
+
+Notlar:
+- "Çalışma" (run) = `simulations` tablosundaki bir simülasyon. Subscriber bitişi kaydetmediği için 30 saniyedir ölçüm gelmeyen çalışma `completed` sayılır.
+- Uyarı türleri: `makine_durdu → unexpected_stop`, `veri_yok → no_data`, `uzun_bosta → long_idle`, `yuksek_guc → power_limit`, `yuksek_enerji_parca → energy_per_part_limit`; yapay zekâdan `guc_anomalisi` ve `yavas_uretim → ai_anomaly`, `uzun_bosta → long_idle`. `source` alanı `rule` ya da `ai`.
+- Yapay zekâ uyarılarını `ai/canli_analiz.py` yazar (mesajı `AI|` ile başlar); backend uyarı motoru bunlara dokunmaz.
+- Yapay zekâ skoru veritabanına yazılmadığı için `ai.score` şimdilik `null`.
+- `/api/alerts` için `runId` verilirse `from`/`to` simülasyon saniyesidir, verilmezse ISO 8601 tarihtir.
+- Çalışma başlatma/durdurma (`POST /api/runs`, `POST /api/runs/{id}/stop`) henüz yok.
+
 ## Uyarı kuralları
 
 | alert_type | Önem | Koşul |
