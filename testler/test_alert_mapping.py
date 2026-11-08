@@ -25,5 +25,6 @@ def test_ai_message_parsing():
     assert mapping.ai_simulation_code(AI_MSG) == "SIM-20261107-162000"
     assert mapping.description(AI_MSG) == "Güç tüketimi normal aralığın dışında."
     closed = AI_MSG + " | Kapanma: normale_dondu"
+    assert mapping.description(closed) == "Güç tüketimi normal aralığın dışında."
     assert mapping.ai_simulation_code(closed) == "SIM-20261107-162000"
     assert mapping.description("Eco CNC durdu") == "Eco CNC durdu"

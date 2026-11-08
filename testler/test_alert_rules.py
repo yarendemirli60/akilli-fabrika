@@ -54,8 +54,9 @@ def test_no_data_ok_when_recent():
     assert rules.check_no_data(M1, last, last.ts + timedelta(seconds=1)) is None
 
 
-def test_no_data_when_never_received():
-    assert rules.check_no_data(M1, None, T0) is not None
+def test_no_alert_before_any_run():
+    # Hiç ölçüm yoksa çalışma başlatılmamıştır; veri_yok uyarısı açılmaz
+    assert rules.check_no_data(M1, None, T0) is None
 
 
 # --- yuksek_guc ---

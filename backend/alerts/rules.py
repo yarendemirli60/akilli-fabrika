@@ -31,10 +31,12 @@ def check_machine_stopped(machine: Machine, measurements: List[Measurement]) -> 
 
 def check_no_data(machine: Machine, last_measurement: Optional[Measurement],
                   now: datetime) -> Optional[Alert]:
-    """Belirli süredir ölçüm gelmiyorsa (bağlantı kesintisi) uyarı verir."""
+    """
+    Belirli süredir ölçüm gelmiyorsa (bağlantı kesintisi) uyarı verir.
+    Hiç ölçüm yoksa henüz çalışma başlatılmamıştır; bu bir arıza değildir.
+    """
     if last_measurement is None:
-        return Alert(machine_id=machine.id, alert_type="veri_yok", severity="warning",
-                     message=f"{machine.name} için hiç ölçüm yok.")
+        return None
     gap = (now - last_measurement.ts).total_seconds()
     if gap > config.NO_DATA_TIMEOUT_S:
         return Alert(
