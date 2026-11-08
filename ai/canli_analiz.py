@@ -109,8 +109,14 @@ class UyariVeritabani:
         self.baglanti.commit()
 
     def yaz(self, sonuc):
-        acilanlar = sonuc["acilan_uyarilar"]
-        kapananlar = sonuc["kapanan_uyarilar"]
+        acilanlar = [
+            uyari for uyari in sonuc["acilan_uyarilar"]
+            if uyari["uyari_turu"] != "uzun_bosta"
+        ]
+        kapananlar = [
+            uyari for uyari in sonuc["kapanan_uyarilar"]
+            if uyari["uyari_turu"] != "uzun_bosta"
+        ]
 
         if not acilanlar and not kapananlar:
             return
