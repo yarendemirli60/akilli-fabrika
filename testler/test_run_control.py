@@ -230,6 +230,11 @@ def test_agent_with_real_publisher():
     ctl = SimulationControl()
     ctl.start()
     code = f"PYTEST-AGENT-{uuid.uuid4().hex[:6]}"
+    max_alert = None
+    if _db_available():
+        with get_cursor() as cur:
+            cur.execute("SELECT COALESCE(MAX(id), 0) AS m FROM alerts")
+            max_alert = cur.fetchone()["m"]
     try:
         deadline = time.time() + 10
         while not ctl.agent_online() and time.time() < deadline:
@@ -264,3 +269,13 @@ def test_agent_with_real_publisher():
             agent.process.kill()
         agent.client.loop_stop()
         agent.client.disconnect()
+        # Subscriber açıksa publisher'ın gönderdiği deneme verisi veritabanına yazılmış olabilir
+        if max_alert is not None:
+            time.sleep(2)                                # kuyruktaki kayıtlar yazılsın
+            with get_cursor() as cur:
+                cur.execute("DELETE FROM alerts WHERE id > %s", (max_alert,))
+                cur.execute("SELECT id FROM simulations WHERE simulation_code LIKE %s",
+                            (code + "%",))
+                for row in cur.fetchall():
+                    cur.execute("DELETE FROM measurements WHERE simulation_id = %s", (row["id"],))
+                    cur.execute("DELETE FROM simulations WHERE id = %s", (row["id"],))
