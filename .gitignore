@@ -14,4 +14,7 @@ venv/
 # VS Code yerel ayarları
 .vscode/
 
-.pytest_cache/
+ai/veri/
+ai/test_sonuclari.csv
+ai/sure_uyarilari.csv
+ai/uyari_gecmisi.json
