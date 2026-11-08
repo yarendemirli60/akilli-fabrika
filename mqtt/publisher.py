@@ -48,6 +48,7 @@ def mqtt_baglan():
         client_id=f"akilli-fabrika-pub-{uuid.uuid4().hex[:8]}",
     )
     client.reconnect_delay_set(min_delay=1, max_delay=30)
+    client.max_inflight_messages_set(500)  # onay beklerken ayni anda gidebilecek mesaj
 
     def on_disconnect(client, userdata, flags, reason_code, properties):
         print(f"[MQTT] Baglanti koptu ({reason_code}). Yeniden baglaniliyor...")
@@ -75,9 +76,26 @@ def mesaj_olustur(olcum, sim_id, baslangic):
     return mesaj
 
 
+SON_BILGI = {"info": None}
+
+
 def gonder(client, mesaj):
     topic = TOPIC_SABLONU.format(makine_id=mesaj["makine_id"])
-    client.publish(topic, json.dumps(mesaj, ensure_ascii=False), qos=1)
+    SON_BILGI["info"] = client.publish(
+        topic, json.dumps(mesaj, ensure_ascii=False), qos=1
+    )
+
+
+def bekle(zaman_asimi):
+    """Son gonderilen mesaj broker tarafindan onaylanana kadar bekler.
+    Boylece program kapanirken kuyrukta bekleyen mesajlar kaybolmaz."""
+    bilgi = SON_BILGI["info"]
+    if bilgi is None:
+        return
+    try:
+        bilgi.wait_for_publish(timeout=zaman_asimi)
+    except (ValueError, RuntimeError) as hata:
+        print(f"[UYARI] Mesaj onayi beklenemedi: {hata}")
 
 
 # ------------------------------------------------------------
@@ -149,10 +167,15 @@ def csv_modu(client, sim_id, dosya, hiz, kodlama):
 
             gonder(client, mesaj_olustur(olcum, sim_id, baslangic))
             adet += 1
+
+            # Kuyruk sismesin ve mesaj kaybolmasin: periyodik olarak onay bekle
+            if adet % 500 == 0:
+                bekle(30)
             if adet % 3000 == 0:
                 print(f"[PUBLISHER] {adet} mesaj gonderildi")
 
-    print(f"[PUBLISHER] CSV bitti. Toplam {adet} mesaj gonderildi.")
+    bekle(60)
+    print(f"[PUBLISHER] CSV bitti. Toplam {adet} mesaj gonderildi ve broker onayladi.")
 
 
 def main():
@@ -177,7 +200,7 @@ def main():
     except KeyboardInterrupt:
         print("\n[PUBLISHER] Durduruldu.")
     finally:
-        time.sleep(0.5)  # bekleyen mesajlar gitsin
+        bekle(15)  # bekleyen mesajlar gitsin
         client.loop_stop()
         client.disconnect()
 
