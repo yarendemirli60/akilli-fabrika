@@ -10,6 +10,12 @@ python-dotenv>=1.0
 # Veri
 pandas>=2.0
 
+# FastAPI ve uyarılar
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pytest>=8.0
+httpx>=0.27
+
 #Aİ
 scikit-learn==1.9.1
 joblib==1.6.0 

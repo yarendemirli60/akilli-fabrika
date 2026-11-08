@@ -1,0 +1,16 @@
+AKILLI FABRİKA — WEB PANELİ
+
+ZIP dosyasını tamamen çıkarın. Klasör yapısını koruyun.
+index.html dosyasını Chrome veya Edge ile açın.
+vendor/chart.umd.js ve api-client.js dosyalarını silmeyin.
+Chart.js 4.4.8 pakete dahildir; internet gerekmez.
+
+Beş ekran demo verileriyle çalışır. Canlı backend bağlantısı henüz yoktur.
+API istemcisi ve önerilen sözleşme API-SOZLESMESI.md dosyasındadır.
+Backend gelince gerçek cevapların panele eşlenmesi ve uçtan uca test gerekir.
+Demo ölçümleri ve yapay zekâ sonuçları gerçek fabrika verisi değildir.
+Geçmiş kayıtlar bu tarayıcıda saklanır. Başka bilgisayara otomatik aktarılmaz.
+Demo durumlarını incele bölümünden örnek kayıtlar, bağlantı ve hata durumları denenebilir.
+
+Düzenlemek için index.html ve api-client.js dosyalarını VS Code ile açın.
+Chart.js lisansı vendor/chart.umd.js dosyasının başlığında bulunur (MIT).
