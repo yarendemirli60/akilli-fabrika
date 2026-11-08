@@ -9,3 +9,7 @@ python-dotenv>=1.0
 
 # Veri
 pandas>=2.0
+
+#Aİ
+scikit-learn==1.9.1
+joblib==1.6.0 
