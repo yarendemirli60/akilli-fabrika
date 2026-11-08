@@ -13,6 +13,7 @@ else:
 
 KLASOR = Path(__file__).resolve().parent
 
+GUC_UYARI_ARDISIK_OLCUM = 3
 
 class AnomaliTespit:
     def __init__(self):
@@ -75,6 +76,7 @@ class AnomaliTespit:
                 "sure_kontrol": SureKontrol(),
                 "aktif": {},
                 "son_sira": {},
+                "guc_serileri": {},
             }
 
         oturum = self.oturumlar[sim_id]
@@ -128,9 +130,27 @@ class AnomaliTespit:
 
         mevcut_sorunlar = set()
         anlik_sure_sorunlari = set()
+        aktif = oturum["aktif"]
+        guc_serileri = oturum["guc_serileri"]
 
-        if durum != "stopped":
-            if guc_anomalisi:
+        if durum == "stopped":
+            guc_serileri.pop(makine, None)
+        else:
+            # Makinenin durumu veya modelin kararı değişirse seriyi sıfırla.
+            onceki_durum, onceki_karar, adet = guc_serileri.get(
+                makine, (None, None, 0)
+            )
+            if onceki_durum != durum or onceki_karar != guc_anomalisi:
+                adet = 0
+
+            adet = min(adet + 1, GUC_UYARI_ARDISIK_OLCUM)
+            guc_serileri[makine] = (durum, guc_anomalisi, adet)
+
+            guc_uyarisi_aktif = (makine, "guc_anomalisi") in aktif
+            if adet == GUC_UYARI_ARDISIK_OLCUM:
+                guc_uyarisi_aktif = guc_anomalisi
+
+            if guc_uyarisi_aktif:
                 mevcut_sorunlar.add("guc_anomalisi")
 
             if takip["bosta_uyarildi"]:
@@ -147,7 +167,7 @@ class AnomaliTespit:
 
         acilanlar = []
         kapananlar = []
-        aktif = oturum["aktif"]
+    
 
         for tur in sorted(mevcut_sorunlar | anlik_sure_sorunlari):
             uyari_anahtari = (makine, tur)
