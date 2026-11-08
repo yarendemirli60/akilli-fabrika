@@ -55,4 +55,7 @@ def description(message: Optional[str]) -> Optional[str]:
     if not is_ai_alert(message):
         return message
     m = _AI_MESSAGE.match(message)
-    return m.group("text").strip() if m else message
+    text = m.group("text") if m else message
+    # Yapay zekâ uyarıyı kapatırken sona "| Kapanma: <neden>" ekliyor;
+    # kapanış bilgisi closedAt alanında olduğu için açıklamadan çıkarılır
+    return text.split(" | Kapanma:")[0].strip()
