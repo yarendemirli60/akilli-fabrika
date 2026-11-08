@@ -2,17 +2,20 @@
 Web paneli için uçlar (web-panel/API-SOZLESMESI.md).
 Panelde: FactoryAPI.configure({baseUrl: 'http://localhost:8000/api'})
 
-Çalışma başlatma/durdurma (POST /runs, POST /runs/{id}/stop) publisher'ın
-API'den kontrol edilmesini gerektirdiği için ayrıca eklenecek.
+Başlat/durdur istekleri MQTT üzerinden simülasyon kontrol programına
+(backend/sim_agent.py) iletilir; ayrıntılar backend/sim_protocol.py içinde.
 """
 import os
 from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
+from backend import scenarios
 from backend.panel_repository import POINT_ALERT_TYPES, PanelRepository, STATUS_MAP, counter_delta, stopped_seconds
 from backend.panel_schemas import Comparison, PanelAlert, Run, SeriesPoint, Snapshot
+from backend.sim_control import ControlError, control
 
 router = APIRouter(prefix="/api", tags=["Web paneli"])
 
@@ -21,6 +24,19 @@ def get_panel_repository():
     if os.getenv("DATA_SOURCE", "mysql").lower() == "sample":
         raise HTTPException(status_code=503, detail="Web paneli uçları yalnızca MySQL ile çalışır.")
     return PanelRepository()
+
+
+def get_control():
+    return control
+
+
+class StartRunRequest(BaseModel):
+    scenarioId: str
+
+
+def _control_error(exc: ControlError) -> HTTPException:
+    status = {"conflict": 409, "bad_request": 422}.get(exc.kind, 503)
+    return HTTPException(status_code=status, detail=str(exc))
 
 
 def _run_or_404(repo, run_id: str) -> dict:
@@ -72,6 +88,80 @@ def list_runs(
             and (end is None or (r["startedAt"] and r["startedAt"] <= end))
             and (scenarioId is None or r["scenarioId"] == scenarioId)
             and (status is None or r["status"] == status)]
+
+
+@router.post("/runs", response_model=Run, status_code=201)
+def start_run(body: StartRunRequest, repo=Depends(get_panel_repository), ctl=Depends(get_control)):
+    """
+    Yeni çalışma başlatır. scenarioId, GET /api/scenarios listesindeki kimlik
+    ya da paneldeki adı olabilir. Devam eden çalışma varsa 409.
+    """
+    scenario = scenarios.find(body.scenarioId)
+    if scenario is None:
+        reason = scenarios.UNSUPPORTED.get(body.scenarioId)
+        supported = ", ".join(s["id"] for s in scenarios.SCENARIOS)
+        detail = f"'{body.scenarioId}' senaryosu desteklenmiyor."
+        if reason:
+            detail += f" {reason}"
+        raise HTTPException(status_code=422, detail=f"{detail} Desteklenenler: {supported}")
+
+    current = repo.current_run()
+    if current is not None or ctl.running_code() is not None:
+        raise HTTPException(status_code=409, detail="Devam eden bir çalışma var. Önce onu durdurun.")
+
+    now = datetime.now()
+    code = f"SIM-{now:%Y%m%d-%H%M%S}-{now.microsecond // 1000:03d}"
+    try:
+        ctl.send("start", code, scenario["id"])
+    except ControlError as exc:
+        raise _control_error(exc)
+
+    run_id = repo.wait_for_run(code)
+    if run_id is None:
+        # Süreç başladı ama veri veritabanına ulaşmıyor: yarım kalmış çalışma bırakma
+        try:
+            ctl.send("stop", code)
+        except ControlError:
+            pass
+        raise HTTPException(status_code=504, detail="Simülasyon başladı ama veritabanına veri gelmedi. "
+                                                    "Subscriber (mqtt/subscriber.py) çalışıyor mu?")
+    repo.set_scenario(run_id, scenario["id"])
+    return repo.get_run(run_id)
+
+
+@router.post("/runs/{run_id}/stop", response_model=Run)
+def stop_run(run_id: str, repo=Depends(get_panel_repository), ctl=Depends(get_control)):
+    """Kullanıcı durdurması. Sonuçlar korunur, arıza uyarısı açılmaz."""
+    run = _run_or_404(repo, run_id)
+    if run["status"] != "running":
+        raise HTTPException(status_code=409, detail="Çalışma zaten bitmiş.")
+    if ctl.running_code() != run["simulationCode"]:
+        raise HTTPException(status_code=409, detail="Bu çalışma panelden başlatılmadığı için panelden "
+                                                    "durdurulamaz (terminalden başlatılmış olabilir).")
+    try:
+        ctl.send("stop", run["simulationCode"])
+    except ControlError as exc:
+        raise _control_error(exc)
+    repo.mark_user_stopped(int(run["runId"]))
+    return repo.get_run(int(run["runId"]))
+
+
+@router.get("/scenarios")
+def list_scenarios():
+    """Panelden başlatılabilen senaryolar."""
+    return scenarios.public_list()
+
+
+@router.get("/control/status")
+def control_status(ctl=Depends(get_control)):
+    """Simülasyon kontrol programının durumu (Başlat düğmesini açıp kapatmak için)."""
+    s = ctl.status() or {}
+    return {
+        "agentOnline": ctl.agent_online(),
+        "state": s.get("state") if ctl.agent_online() else None,
+        "simulationCode": s.get("simulation_code") if ctl.agent_online() else None,
+        "scenarioId": s.get("scenario") if ctl.agent_online() else None,
+    }
 
 
 @router.get("/runs/{run_id}/snapshot", response_model=Snapshot)

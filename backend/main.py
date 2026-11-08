@@ -19,10 +19,13 @@ from fastapi.responses import JSONResponse
 from backend.alerts import engine
 from backend.repository import get_repository
 from backend.routers import alerts, machines, measurements, panel
+from backend.sim_control import control
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Simülasyon kontrol programının durumunu dinlemeye başla (broker yoksa API yine açılır)
+    control.start()
     # API açılınca uyarı motorunu arka planda başlat, kapanınca durdur.
     # .env içinde ALERT_ENGINE=off yazılırsa motor çalışmaz.
     stop_event = threading.Event()
@@ -31,12 +34,13 @@ async def lifespan(app: FastAPI):
                          daemon=True).start()
     yield
     stop_event.set()
+    control.stop()
 
 
 app = FastAPI(
     title="Akıllı Fabrika API",
     description="Üç CNC makinesinin ölçüm, durum ve uyarı verilerini sunar.",
-    version="0.4.0",
+    version="0.5.0",
     lifespan=lifespan,
 )
 

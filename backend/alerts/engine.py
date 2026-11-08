@@ -18,6 +18,7 @@ import os
 import threading
 from typing import Dict, List, Optional
 
+from backend import config
 from backend.alerts import rules
 from backend.alerts.mapping import is_ai_alert
 
@@ -38,14 +39,33 @@ def _can_resolve(alert_type: str, measurements) -> bool:
     düzelmediği anlaşılamaz; bu durumda uyarı açık kalır.
     """
     if alert_type == "yuksek_guc":
-        return bool(measurements) and measurements[-1].status == "working"
+        # Ortalamaya giren ölçümlerin hepsi kesim sırasında olmalı; aksi halde fazlar arası
+        # geçişte boşta değerleri ortalamayı düşürür ve uyarı yanlışlıkla kapanır.
+        window = measurements[-config.HIGH_POWER_MIN_READINGS:]
+        return (len(window) == config.HIGH_POWER_MIN_READINGS
+                and all(m.status == "working" for m in window))
     return True
+
+
+def _run_has_ended(repo, measurements) -> bool:
+    """Makinenin son ölçümü, bitmiş ya da kullanıcının durdurduğu bir çalışmaya mı ait?"""
+    check = getattr(repo, "simulation_ended", None)
+    return bool(measurements) and check is not None and check(measurements[-1].simulation_id)
 
 
 def sync_machine(repo, machine) -> Dict:
     """Tek bir makine için kuralları çalıştırır ve alerts tablosunu günceller."""
     measurements = repo.get_measurements(machine_id=machine.id, limit=RULE_WINDOW)
-    current = {a.alert_type: a for a in rules.evaluate_all(machine, measurements, repo.now())}
+    # Kurallar yalnızca makinenin son çalışmasına bakar; önceki çalışmanın ölçümleri
+    # (örneğin boşta bitmiş bir simülasyon) yeni çalışmanın sürelerine karışmasın.
+    if measurements:
+        current_sim = measurements[-1].simulation_id
+        measurements = [m for m in measurements if m.simulation_id == current_sim]
+    # Duruma göre bastırma (ISA-18.2): çalışma bittiyse veri gelmemesi beklenen bir durumdur;
+    # kurallar çalıştırılmaz ve açık kural uyarıları kapatılır.
+    ended = _run_has_ended(repo, measurements)
+    current = {} if ended else {
+        a.alert_type: a for a in rules.evaluate_all(machine, measurements, repo.now())}
     # Yapay zekânın (ai/canli_analiz.py) açtığı uyarılara dokunulmaz; onları kendisi yönetiyor
     open_alerts = {a.alert_type: a for a in repo.get_open_alerts(machine.id)
                    if not is_ai_alert(a.message)}
@@ -58,7 +78,7 @@ def sync_machine(repo, machine) -> Dict:
 
     for alert_type, record in open_alerts.items():
         if (alert_type in ENGINE_ALERT_TYPES and alert_type not in current
-                and _can_resolve(alert_type, measurements)):
+                and (ended or _can_resolve(alert_type, measurements))):
             repo.resolve_alert(record.id)
             resolved.append(alert_type)
 

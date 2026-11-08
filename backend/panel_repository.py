@@ -2,9 +2,10 @@
 Web paneli için veri katmanı.
 
 Sözleşmedeki "çalışma" (run) bizim veritabanımızdaki bir simülasyondur
-(simulations tablosu). Subscriber simülasyonun bitişini kaydetmediği için
-çalışmanın durumu son ölçüm zamanından çıkarılıyor.
+(simulations tablosu). Çalışmanın durumu; ended_at alanı, simülasyon kontrol
+programının bildirdiği durum ve son ölçüm zamanından çıkarılıyor (run_status).
 """
+import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
@@ -23,9 +24,24 @@ POINT_ALERT_TYPES = {"power_limit", "ai_anomaly"}
 
 # ---------- Saf hesaplamalar (veritabanından bağımsız, ayrıca test ediliyor) ----------
 
-def run_status(ended_at: Optional[datetime], last_data_at: Optional[datetime], now: datetime) -> str:
+def run_status(ended_at: Optional[datetime], last_data_at: Optional[datetime], now: datetime,
+               code: Optional[str] = None, running_code: Optional[str] = None,
+               last_finished: Optional[Dict] = None) -> str:
+    """
+    Çalışma durumu (öncelik sırasıyla):
+      1. ended_at dolu          -> user_stopped (ended_at'i yalnızca kullanıcı durdurması doldurur)
+      2. kontrol programı bu çalışmayı yürütüyor -> running
+      3. kontrol programı bu çalışmanın bittiğini bildirdi -> completed / error
+      4. panel dışından başlatılmış (terminalden publisher): son veri yeniyse running
+      5. aksi halde -> completed
+    """
     if ended_at is not None:
-        return "completed"
+        return "user_stopped"
+    if code and running_code == code:
+        return "running"
+    if code and last_finished and last_finished.get("simulation_code") == code:
+        reason = last_finished.get("reason")
+        return reason if reason in ("error", "user_stopped") else "completed"
     if last_data_at is not None and (now - last_data_at).total_seconds() <= RUN_TIMEOUT_S:
         return "running"
     return "completed"
@@ -64,6 +80,13 @@ def stopped_seconds(row: Dict) -> Optional[float]:
 
 class PanelRepository:
 
+    def __init__(self, control=None):
+        # Simülasyon kontrol istemcisi (sim_control.control); testlerde sahtesi verilebilir
+        if control is None:
+            from backend.sim_control import control as default_control
+            control = default_control
+        self.control = control
+
     def now(self) -> datetime:
         return datetime.now()
 
@@ -86,7 +109,8 @@ class PanelRepository:
             return cur.fetchall()
 
     def _to_run(self, row: Dict, now: datetime) -> Dict:
-        status = run_status(row["ended_at"], row["last_data_at"], now)
+        status = run_status(row["ended_at"], row["last_data_at"], now, row["simulation_code"],
+                            self.control.running_code(), self.control.last_finished())
         ended = row["ended_at"] or (row["last_data_at"] if status != "running" else None)
         return {
             "runId": str(row["id"]),
@@ -112,6 +136,32 @@ class PanelRepository:
             if run["status"] == "running":
                 return run
         return None
+
+    # Başlat / durdur
+
+    def wait_for_run(self, simulation_code: str, timeout: float = 15.0) -> Optional[int]:
+        """
+        Subscriber simülasyon kaydını ilk ölçüm geldiğinde oluşturuyor;
+        kayıt görünene kadar kısa aralıklarla bekler.
+        """
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            with get_cursor() as cur:
+                cur.execute("SELECT id FROM simulations WHERE simulation_code = %s", (simulation_code,))
+                row = cur.fetchone()
+            if row:
+                return row["id"]
+            time.sleep(0.2)
+        return None
+
+    def set_scenario(self, run_id: int, scenario_id: str) -> None:
+        with get_cursor() as cur:
+            cur.execute("UPDATE simulations SET scenario = %s WHERE id = %s", (scenario_id, run_id))
+
+    def mark_user_stopped(self, run_id: int) -> None:
+        with get_cursor() as cur:
+            cur.execute("UPDATE simulations SET ended_at = NOW(3) WHERE id = %s AND ended_at IS NULL",
+                        (run_id,))
 
     # Makineler ve ölçümler
 
