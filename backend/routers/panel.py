@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from backend import scenarios
-from backend.panel_repository import POINT_ALERT_TYPES, PanelRepository, STATUS_MAP, counter_delta, stopped_seconds
+from backend.panel_repository import (POINT_ALERT_TYPES, PanelRepository, STATUS_MAP, counter_delta,
+                                      marks_point, stopped_seconds)
 from backend.panel_schemas import Comparison, PanelAlert, Run, SeriesPoint, Snapshot
 from backend.sim_control import ControlError, control
 
@@ -213,15 +214,16 @@ def series(
     rows = repo.series(int(run["runId"]), int(machine_id), from_, to, step)
 
     # Güç uyarılarının açık olduğu zaman aralıkları
-    windows = [(a["startedAt"], a["closedAt"], a["id"])
+    windows = [(a["startedAt"], a["closedAt"], a["id"], a["type"])
                for a in repo.panel_alerts(machine_id=int(machine_id), with_elapsed=False)
                if a["runId"] == run["runId"] and a["type"] in POINT_ALERT_TYPES]
 
     points = []
     for r in rows:
         # Nokta, kapsadığı zaman diliminde açık olan bir güç uyarısıyla işaretlenir
-        alert_id = next((wid for start, end, wid in windows
-                         if start <= r["ts_end"] and (end is None or end >= r["ts_start"])), None)
+        alert_id = next((wid for start, end, wid, kind in windows
+                         if start <= r["ts_end"] and (end is None or end >= r["ts_start"])
+                         and marks_point(kind, bool(r["working"]))), None)
         points.append({
             "elapsedSeconds": round(r["elapsed"], 3),
             "powerKw": round(r["power"], 3) if r["power"] is not None else None,

@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from backend.database import DB_CONFIG, get_cursor
 from backend.main import app
-from backend.panel_repository import counter_delta, run_status, stopped_seconds
+from backend.panel_repository import counter_delta, marks_point, run_status, stopped_seconds
 
 T = datetime(2026, 11, 7, 12, 0, 0)
 
@@ -43,14 +43,21 @@ def test_run_status_from_control_program():
 
 
 def test_counter_delta_uses_differences():
-    start = {"energy_kwh": 1.0, "completed_parts": 2, "work_s": 100.0, "idle_s": 20.0}
-    end = {"energy_kwh": 3.0, "completed_parts": 6, "work_s": 400.0, "idle_s": 50.0}
+    start = {"energy_kwh": 1.0, "completed_parts": 2, "work_s": 100.0, "idle_s": 20.0, "end_s": 120.0}
+    end = {"energy_kwh": 3.0, "completed_parts": 6, "work_s": 400.0, "idle_s": 50.0, "end_s": 470.0}
     d = counter_delta(start, end)
     assert d["energyKwh"] == 2.0
     assert d["productionCount"] == 4
     assert d["energyPerPartKwh"] == 0.5
     assert d["runningSeconds"] == 300.0
     assert d["idleSeconds"] == 30.0
+    assert d["stoppedSeconds"] == 20.0      # 350 sn geçti, 300 çalışma + 30 boşta
+
+
+def test_power_limit_marks_only_cutting_points():
+    assert marks_point("power_limit", bucket_working=True) is True
+    assert marks_point("power_limit", bucket_working=False) is False   # boşta noktası
+    assert marks_point("ai_anomaly", bucket_working=False) is True     # yapay zekâ kararı olduğu gibi
 
 
 def test_counter_delta_edge_cases():
@@ -190,6 +197,7 @@ def test_comparison(run):
     assert m2["productionCount"] == 1
     assert m2["energyPerPartKwh"] == pytest.approx(20 * 10 / 3600, abs=1e-6)
     assert m2["runningSeconds"] == 10.0
+    assert m2["stoppedSeconds"] == 0.0
     assert m2["averagePowerKw"] == 20.0
 
 

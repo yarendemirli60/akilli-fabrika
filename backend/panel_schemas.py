@@ -64,6 +64,7 @@ class MachineComparison(BaseModel):
     averagePowerKw: Optional[float] = None
     runningSeconds: Optional[float] = None
     idleSeconds: Optional[float] = None
+    stoppedSeconds: Optional[float] = None
 
 
 class Comparison(BaseModel):
