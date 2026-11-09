@@ -1,15 +1,22 @@
-# Web Paneli ve Grafikler
+# Canlı Web Paneli
 
-Beş ekran: Genel Bakış, Makine Detayı, Karşılaştırma, Uyarı Merkezi ve Geçmiş Çalışmalar.
+Panel artık demo ölçüm üretmez; verileri backend /api uçlarından alır.
 
-## Açma
-Bu klasördeki index.html dosyasını tarayıcıda açın. vendor klasörünü aynı konumda tutun. Chart.js 4.4.8 yerel olarak dahildir.
+## Çalıştırma
+1. backend/README.md içindeki MySQL, MQTT subscriber ve sim_agent kurulumunu tamamlayın.
+2. Proje kökünde: uvicorn backend.main:app --reload
+3. web-panel/index.html dosyasını Chrome/Edge ile açın veya bu klasörü yerel HTTP sunucusuyla sunun.
+4. Varsayılan API: http://127.0.0.1:8000/api. Sayfa altındaki Backend bağlantısı bölümünden değiştirilebilir.
 
-## Mevcut durum
-- Üç makinenin demo ölçümleri ve durumları.
-- Chart.js ile güç, birikimli enerji, basamaklı üretim, karşılaştırma ve süre grafikleri.
-- Filtreler, uyarı ayrıntıları, geçmiş çalışma görüntüleme ve demo hata durumları.
-- Demo çalışmalar tarayıcı depolamasında saklanır.
+Panel üç saniyede bir API verilerini yeniler. Açılışta GET /runs/current ile devam eden çalışmaya bağlanır; otomatik başlatma POST'u göndermez. Başlat/durdur yalnızca düğmeyle backend'e iletilir. Bağlantı hatasında son başarılı değerler tutulur. Geçmiş seçiminde istekler seçilen runId'ye gider.
 
-## Bekleyen entegrasyon
-Gerçek backend ve yapay zekâ servisi bağlı değildir. api-client.js önerilen uçlara istek gönderebilir; gerçek yanıtların panel verisine eşlenmesi ve uçtan uca testler backend hazır olduğunda yapılmalıdır. API-SOZLESMESI.md frontend tarafından önerilen sözleşmedir; mevcut backend dokümantasyonu değildir.
+Chart.js yerel vendor klasöründedir. api-client.js önceki istemci yardımcı dosyasıdır; canlı ekran akışını live-panel.js yönetir.
+
+## Backend sınırları ve doğrulama
+- ai.score null geliyor; panel bunu — gösterir.
+- Analiz zamanı yoksa Analiz için veri birikiyor gösterilir; model sonucu üretilmez.
+- Karşılaştırma yanıtında stoppedSeconds bulunmuyor; duruş grafiği/table değeri için backend alanı gereklidir. Bu değer toplam süreden tahmin edilmez.
+- Gerçek MySQL/MQTT/AI zinciri bu bilgisayarda çalıştırılmadı. Gerçek veriyle uçtan uca deneme ve rapor ekran görüntüsü ekip ortamında alınmalıdır.
+- Otomatik frontend kontrolü: API ile açılış, otomatik POST olmaması, bağlantı hatasında ölçüm koruma ve geçmiş çalışma kimliği.
+
+Yapay zekâ yanlış alarmlarını panel düzeltmez veya gizlemez. Uyarı açma/kapama ve eşik düzenlemesi AI tarafındadır.
