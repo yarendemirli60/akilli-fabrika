@@ -60,13 +60,27 @@ def counter_delta(start: Optional[Dict], end: Optional[Dict]) -> Dict:
 
     energy = diff("energy_kwh")
     parts = diff("completed_parts")
+    running, idle, elapsed = diff("work_s"), diff("idle_s"), diff("end_s")
+    # Duruş = geçen süre - çalışma - boşta (aralıktaki farklarla)
+    stopped = (round(max(0.0, elapsed - running - idle), 3)
+               if None not in (running, idle, elapsed) else None)
     return {
         "energyKwh": round(energy, 6) if energy is not None else None,
         "productionCount": parts,
         "energyPerPartKwh": round(energy / parts, 6) if energy is not None and parts else None,
-        "runningSeconds": diff("work_s"),
-        "idleSeconds": diff("idle_s"),
+        "runningSeconds": running,
+        "idleSeconds": idle,
+        "stoppedSeconds": stopped,
     }
+
+
+def marks_point(alert_type: str, bucket_working: bool) -> bool:
+    """
+    Grafik noktası bu uyarıyla işaretlensin mi?
+    Güç sınırı (kural) uyarısı arıza boyunca açık kalır, ama yalnızca kesim
+    sırasındaki noktalar işaretlenir; boşta fazındaki düşük güç noktaları anomali değildir.
+    """
+    return alert_type != "power_limit" or bucket_working
 
 
 def stopped_seconds(row: Dict) -> Optional[float]:
@@ -213,7 +227,8 @@ class PanelRepository:
         """
         sql = """
             SELECT MAX(end_s) AS elapsed, AVG(power_kw) AS power, MAX(energy_kwh) AS energy,
-                   MAX(completed_parts) AS parts, MIN(ts) AS ts_start, MAX(ts) AS ts_end
+                   MAX(completed_parts) AS parts, MIN(ts) AS ts_start, MAX(ts) AS ts_end,
+                   MAX(status = 'working') AS working
             FROM measurements
             WHERE simulation_id = %s AND machine_id = %s AND end_s IS NOT NULL AND end_s >= %s
         """
