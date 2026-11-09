@@ -13,9 +13,9 @@ Panel üç saniyede bir API verilerini yeniler. Açılışta GET /runs/current i
 Chart.js yerel vendor klasöründedir. api-client.js önceki istemci yardımcı dosyasıdır; canlı ekran akışını live-panel.js yönetir.
 
 ## Backend sınırları ve doğrulama
-- ai.score null geliyor; panel bunu — gösterir.
-- Analiz zamanı yoksa Analiz için veri birikiyor gösterilir; model sonucu üretilmez.
-- Karşılaştırma yanıtında stoppedSeconds bulunmuyor; duruş grafiği/table değeri için backend alanı gereklidir. Bu değer toplam süreden tahmin edilmez.
+- Yapay zekâ rozeti doğrudan ai.result alanını gösterir. Skor ve analiz zamanı arayüzde gösterilmez.
+- normal → Normal; anomaly → Olağandışı; yalnızca açık collecting sonucu → Analiz için veri birikiyor. Boş analiz zamanı normal sonucunu değiştirmez.
+- Karşılaştırmadaki stoppedSeconds alanı dakika olarak duruş grafiğine ve tabloya aktarılır. Eksik alan sıfır kabul edilmez.
 - Gerçek MySQL/MQTT/AI zinciri bu bilgisayarda çalıştırılmadı. Gerçek veriyle uçtan uca deneme ve rapor ekran görüntüsü ekip ortamında alınmalıdır.
 - Otomatik frontend kontrolü: API ile açılış, otomatik POST olmaması, bağlantı hatasında ölçüm koruma ve geçmiş çalışma kimliği.
 
