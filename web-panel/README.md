@@ -14,8 +14,8 @@ Chart.js yerel vendor klasöründedir. api-client.js önceki istemci yardımcı 
 
 ## Backend sınırları ve doğrulama
 - ai.score null geliyor; panel bunu — gösterir.
-- Analiz zamanı yoksa Analiz için veri birikiyor gösterilir; model sonucu üretilmez.
-- Karşılaştırma yanıtında stoppedSeconds bulunmuyor; duruş grafiği/table değeri için backend alanı gereklidir. Bu değer toplam süreden tahmin edilmez.
+- Analiz zamanı olmayan normal sonuçta Analiz sonucu bekleniyor gösterilir; collecting sonucunda Veri birikiyor gösterilir. Backend analiz zamanı/skoru sağlamadıkça bunlar üretilmez.
+- Karşılaştırmadaki stoppedSeconds alanı dakika olarak duruş grafiğine ve tabloya aktarılır. Eksik alan sıfır kabul edilmez.
 - Gerçek MySQL/MQTT/AI zinciri bu bilgisayarda çalıştırılmadı. Gerçek veriyle uçtan uca deneme ve rapor ekran görüntüsü ekip ortamında alınmalıdır.
 - Otomatik frontend kontrolü: API ile açılış, otomatik POST olmaması, bağlantı hatasında ölçüm koruma ve geçmiş çalışma kimliği.
 
