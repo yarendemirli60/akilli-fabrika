@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS measurements (
   -- Ayni olcum ikinci kez yazilamasin (tekrar kayit korumasi)
   UNIQUE KEY uq_measurement (simulation_id, machine_id, seq),
   KEY idx_machine_ts (machine_id, ts),
+  KEY idx_sim_machine_end (simulation_id, machine_id, end_s),  -- panel sorgulari (zaman araligi) icin
   CONSTRAINT fk_meas_sim     FOREIGN KEY (simulation_id) REFERENCES simulations(id),
   CONSTRAINT fk_meas_machine FOREIGN KEY (machine_id)    REFERENCES machines(id)
 ) ENGINE=InnoDB;
